@@ -1,0 +1,68 @@
+---
+version: 2
+
+references:
+  default: &default
+    working_directory: ~/target
+
+  tf_defaults: &tf_defaults
+    <<: *default
+    docker:
+      - image: hashicorp/terraform:0.11.13
+    environment:
+      ENV: $CIRCLE_BRANCH
+      TFNOTIFY_VERISON: "v0.3.0"
+      GOOGLE_BACKEND_CREDENTIALS: "/tmp/gcp_backend_credentials.json"
+      GOOGLE_APPLICATION_CREDENTIALS: "/tmp/gcp_credentials.json"
+
+  install_tfnotify: &install_tfnotify
+    run:
+      name: Install tfnotify
+      command: |
+        wget https://github.com/mercari/tfnotify/releases/download/${TFNOTIFY_VERISON}/tfnotify_${TFNOTIFY_VERISON}_linux_amd64.tar.gz
+        tar zxvf tfnotify_${TFNOTIFY_VERISON}_linux_amd64.tar.gz
+        cp tfnotify_${TFNOTIFY_VERISON}_linux_amd64/tfnotify /usr/local/bin/tfnotify
+        rm -rf tfnotify_${TFNOTIFY_VERISON}_linux_amd64.tar.gz tfnotify_${TFNOTIFY_VERISON}_linux_amd64
+
+  install_package: &install_package
+    run:
+      name: package install for make
+      command: apk add make gcc g++ ncurses
+
+jobs:
+  tf-plan:
+    <<: *tf_defaults
+    steps:
+      - checkout
+      - *install_tfnotify
+      - *install_package
+      - run:
+          name: terraform plan
+          command: |
+            source .circleci/set-gcp-credentials.sh && \
+            ./terraform/scripts/terraform.sh terraform plan
+
+  tf-apply:
+    <<: *tf_defaults
+    steps:
+      - checkout
+      - *install_tfnotify
+      - *install_package
+      - run:
+          name: terraform apply --auto-approve
+          command: |
+            source .circleci/set-gcp-credentials.sh && \
+            ./terraform/scripts/terraform.sh terraform apply-auto-approve
+
+workflows:
+  version: 2
+  lint_and_tf:
+    jobs:
+      - tf-plan:
+          filters:
+            branches:
+              ignore: master
+      - tf-apply:
+          filters:
+            branches:
+              only: master
