@@ -1,2 +1,3 @@
 # my-terraform
-my terraform
+
+workspaceを利用したterraformのsample.
